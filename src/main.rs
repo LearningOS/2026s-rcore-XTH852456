@@ -2,8 +2,12 @@
 #![no_main]
 
 mod lang_items;
+mod sbi;
 
-use core::{fmt::Write, fmt, panic::PanicInfo};
+use core::{fmt, fmt::Write};
+use sbi::shutdown;
+core::arch::global_asm!(include_str!("entry.asm"));
+
 
 const SYSCALL_EXIT: usize = 93;
 
@@ -60,10 +64,19 @@ macro_rules! println {
     }
 }
 
-
+fn clear_bss() {
+    unsafe extern "C" {
+        unsafe fn sbss();
+        unsafe fn ebss();
+    }
+    (sbss as usize..ebss as usize).for_each(|a| {
+        unsafe { (a as *mut u8).write_volatile(0) }
+    });
+}
 
 #[unsafe(no_mangle)]
-extern "C" fn _start() {
-    println!("Hello, world!");
-    sys_exit(9);
+extern "C" fn rust_main() -> ! {
+    clear_bss();
+    shutdown();
 }
+
