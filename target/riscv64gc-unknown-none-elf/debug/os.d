@@ -1,1 +1,1 @@
-/home/oslab/rcore/os/target/riscv64gc-unknown-none-elf/debug/os: /home/oslab/rcore/os/src/lang_items.rs /home/oslab/rcore/os/src/main.rs
+/home/oslab/rcore/os/2026s-rcore-XTH852456/target/riscv64gc-unknown-none-elf/debug/os: /home/oslab/rcore/os/2026s-rcore-XTH852456/src/lang_items.rs /home/oslab/rcore/os/2026s-rcore-XTH852456/src/main.rs
