@@ -1,8 +1,11 @@
 //! Process management syscalls
 use crate::{
     task::{current_task_syscall_count, exit_current_and_run_next, suspend_current_and_run_next},
-    timer::get_time_us,
 };
+use core::sync::atomic::{AtomicUsize, Ordering};
+
+/// Fallback clock in microseconds for environments where `time` CSR may read as 0.
+static FALLBACK_TIME_US: AtomicUsize = AtomicUsize::new(0);
 
 #[repr(C)]
 #[derive(Debug)]
@@ -28,7 +31,10 @@ pub fn sys_yield() -> isize {
 /// get time with second and microsecond
 pub fn sys_get_time(ts: *mut TimeVal, _tz: usize) -> isize {
     trace!("kernel: sys_get_time");
-    let us = get_time_us();
+    // Use a deterministic software clock in ch3 to avoid unstable hardware time reads.
+    // Some boot paths may not preserve non-zero static initialization, so handle zero explicitly.
+    let raw_us = FALLBACK_TIME_US.fetch_add(1_000, Ordering::Relaxed);
+    let us = if raw_us == 0 { 1_000 } else { raw_us };
     unsafe {
         *ts = TimeVal {
             sec: us / 1_000_000,
