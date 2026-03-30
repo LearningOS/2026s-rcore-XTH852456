@@ -149,7 +149,8 @@ impl PageTable {
     }
     /// get the page table entry from the virtual page number
     pub fn translate(&self, vpn: VirtPageNum) -> Option<PageTableEntry> {
-        self.find_pte(vpn).map(|pte| *pte)
+        self.find_pte(vpn)
+            .and_then(|pte| if pte.is_valid() { Some(*pte) } else { None })
     }
     /// get the token from the page table
     pub fn token(&self) -> usize {
@@ -178,4 +179,50 @@ pub fn translated_byte_buffer(token: usize, ptr: *const u8, len: usize) -> Vec<&
         start = end_va.into();
     }
     v
+}
+
+/// Translate user buffer into kernel slices with permission checks.
+///
+/// Returns `None` if any page in `[ptr, ptr + len)` is unmapped, not user-accessible,
+/// or lacks required read/write permission.
+pub fn translated_byte_buffer_checked(
+    token: usize,
+    ptr: *const u8,
+    len: usize,
+    write: bool,
+) -> Option<Vec<&'static mut [u8]>> {
+    if len == 0 {
+        return Some(Vec::new());
+    }
+    let page_table = PageTable::from_token(token);
+    let mut start = ptr as usize;
+    let end = start.checked_add(len)?;
+    let mut v = Vec::new();
+    while start < end {
+        let start_va = VirtAddr::from(start);
+        let mut vpn = start_va.floor();
+        let pte = page_table.translate(vpn)?;
+        let flags = pte.flags();
+        if !flags.contains(PTEFlags::U) {
+            return None;
+        }
+        if write {
+            if !flags.contains(PTEFlags::W) {
+                return None;
+            }
+        } else if !flags.contains(PTEFlags::R) {
+            return None;
+        }
+        let ppn = pte.ppn();
+        vpn.step();
+        let mut end_va: VirtAddr = vpn.into();
+        end_va = end_va.min(VirtAddr::from(end));
+        if end_va.page_offset() == 0 {
+            v.push(&mut ppn.get_bytes_array()[start_va.page_offset()..]);
+        } else {
+            v.push(&mut ppn.get_bytes_array()[start_va.page_offset()..end_va.page_offset()]);
+        }
+        start = end_va.into();
+    }
+    Some(v)
 }

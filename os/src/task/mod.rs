@@ -15,12 +15,14 @@ mod switch;
 mod task;
 
 use crate::loader::{get_app_data, get_num_app};
+use crate::mm::{MapPermission, VirtAddr};
 use crate::sync::UPSafeCell;
 use crate::trap::TrapContext;
 use alloc::vec::Vec;
 use lazy_static::*;
 use switch::__switch;
 pub use task::{TaskControlBlock, TaskStatus};
+pub use task::MAX_SYSCALL_NUM;
 
 pub use context::TaskContext;
 
@@ -133,6 +135,46 @@ impl TaskManager {
         inner.tasks[cur].change_program_brk(size)
     }
 
+    /// Record one syscall for current running task.
+    fn record_current_syscall(&self, syscall_id: usize) {
+        if syscall_id >= MAX_SYSCALL_NUM {
+            return;
+        }
+        let mut inner = self.inner.exclusive_access();
+        let cur = inner.current_task;
+        inner.tasks[cur].syscall_times[syscall_id] += 1;
+    }
+
+    /// Get current running task's syscall count by id.
+    fn current_syscall_count(&self, syscall_id: usize) -> usize {
+        if syscall_id >= MAX_SYSCALL_NUM {
+            return 0;
+        }
+        let inner = self.inner.exclusive_access();
+        let cur = inner.current_task;
+        inner.tasks[cur].syscall_times[syscall_id]
+    }
+
+    /// Map user memory range in current task.
+    fn current_mmap(&self, start: usize, len: usize, permission: MapPermission) -> bool {
+        let mut inner = self.inner.exclusive_access();
+        let cur = inner.current_task;
+        inner.tasks[cur].memory_set.mmap(
+            VirtAddr::from(start),
+            VirtAddr::from(start + len),
+            permission,
+        )
+    }
+
+    /// Unmap user memory range in current task.
+    fn current_munmap(&self, start: usize, len: usize) -> bool {
+        let mut inner = self.inner.exclusive_access();
+        let cur = inner.current_task;
+        inner.tasks[cur]
+            .memory_set
+            .munmap(VirtAddr::from(start), VirtAddr::from(start + len))
+    }
+
     /// Switch current `Running` task to the task we have found,
     /// or there is no `Ready` task and we can exit with all applications completed
     fn run_next_task(&self) {
@@ -201,4 +243,24 @@ pub fn current_trap_cx() -> &'static mut TrapContext {
 /// Change the current 'Running' task's program break
 pub fn change_program_brk(size: i32) -> Option<usize> {
     TASK_MANAGER.change_current_program_brk(size)
+}
+
+/// Record one syscall for current running task.
+pub fn record_current_syscall(syscall_id: usize) {
+    TASK_MANAGER.record_current_syscall(syscall_id);
+}
+
+/// Get current running task's syscall count by id.
+pub fn current_task_syscall_count(syscall_id: usize) -> usize {
+    TASK_MANAGER.current_syscall_count(syscall_id)
+}
+
+/// Map user memory range in current task.
+pub fn current_task_mmap(start: usize, len: usize, permission: MapPermission) -> bool {
+    TASK_MANAGER.current_mmap(start, len, permission)
+}
+
+/// Unmap user memory range in current task.
+pub fn current_task_munmap(start: usize, len: usize) -> bool {
+    TASK_MANAGER.current_munmap(start, len)
 }

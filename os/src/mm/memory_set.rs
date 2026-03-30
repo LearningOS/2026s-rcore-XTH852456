@@ -262,6 +262,44 @@ impl MemorySet {
             false
         }
     }
+
+    /// Map a user framed area if all pages in range are currently unmapped.
+    pub fn mmap(&mut self, start: VirtAddr, end: VirtAddr, permission: MapPermission) -> bool {
+        let start_vpn = start.floor();
+        let end_vpn = end.ceil();
+        for vpn in VPNRange::new(start_vpn, end_vpn) {
+            if self.translate(vpn).is_some() {
+                return false;
+            }
+        }
+        self.push(
+            MapArea::new(start, end, MapType::Framed, permission),
+            None,
+        );
+        true
+    }
+
+    /// Unmap a user framed area matched by exact [start, end) range.
+    pub fn munmap(&mut self, start: VirtAddr, end: VirtAddr) -> bool {
+        let start_vpn = start.floor();
+        let end_vpn = end.ceil();
+        for vpn in VPNRange::new(start_vpn, end_vpn) {
+            if self.translate(vpn).is_none() {
+                return false;
+            }
+        }
+        if let Some((idx, _)) = self.areas.iter().enumerate().find(|(_, area)| {
+            area.map_type == MapType::Framed
+                && area.vpn_range.get_start() == start_vpn
+                && area.vpn_range.get_end() == end_vpn
+        }) {
+            let mut area = self.areas.remove(idx);
+            area.unmap(&mut self.page_table);
+            true
+        } else {
+            false
+        }
+    }
 }
 /// map area structure, controls a contiguous piece of virtual memory
 pub struct MapArea {
