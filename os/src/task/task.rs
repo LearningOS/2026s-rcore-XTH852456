@@ -68,6 +68,12 @@ pub struct TaskControlBlockInner {
 
     /// Program break
     pub program_brk: usize,
+
+    /// Current stride value for stride scheduler
+    pub stride: u64,
+
+    /// Priority for stride scheduler, must be >= 2
+    pub priority: u64,
 }
 
 impl TaskControlBlockInner {
@@ -118,6 +124,8 @@ impl TaskControlBlock {
                     exit_code: 0,
                     heap_bottom: user_sp,
                     program_brk: user_sp,
+                    stride: 0,
+                    priority: 16,
                 })
             },
         };
@@ -191,6 +199,8 @@ impl TaskControlBlock {
                     exit_code: 0,
                     heap_bottom: parent_inner.heap_bottom,
                     program_brk: parent_inner.program_brk,
+                    stride: 0,
+                    priority: 16,
                 })
             },
         });
@@ -235,6 +245,12 @@ impl TaskControlBlock {
         } else {
             None
         }
+    }
+
+    /// Set process priority for stride scheduler.
+    pub fn set_priority(&self, prio: u64) {
+        let mut inner = self.inner_exclusive_access();
+        inner.priority = prio;
     }
 }
 
