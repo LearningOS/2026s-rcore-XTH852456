@@ -318,6 +318,50 @@ impl MemorySet {
             false
         }
     }
+
+    /// map a new user framed area [start, end)
+    pub fn mmap(&mut self, start: VirtAddr, end: VirtAddr, permission: MapPermission) -> bool {
+        let start_vpn = start.floor();
+        let end_vpn = end.ceil();
+        if start_vpn >= end_vpn {
+            return false;
+        }
+        for area in self.areas.iter() {
+            let area_start = area.vpn_range.get_start();
+            let area_end = area.vpn_range.get_end();
+            if start_vpn < area_end && area_start < end_vpn {
+                return false;
+            }
+        }
+        self.push(
+            MapArea::new(start, end, MapType::Framed, permission),
+            None,
+        );
+        true
+    }
+
+    /// unmap an existing area [start, end)
+    pub fn munmap(&mut self, start: VirtAddr, end: VirtAddr) -> bool {
+        let start_vpn = start.floor();
+        let end_vpn = end.ceil();
+        if start_vpn >= end_vpn {
+            return false;
+        }
+        if let Some((idx, area)) = self
+            .areas
+            .iter_mut()
+            .enumerate()
+            .find(|(_, area)| {
+                area.vpn_range.get_start() == start_vpn && area.vpn_range.get_end() == end_vpn
+            })
+        {
+            area.unmap(&mut self.page_table);
+            self.areas.remove(idx);
+            true
+        } else {
+            false
+        }
+    }
 }
 /// map area structure, controls a contiguous piece of virtual memory
 pub struct MapArea {
