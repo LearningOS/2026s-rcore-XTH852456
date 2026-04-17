@@ -43,6 +43,8 @@ pub struct ProcessControlBlockInner {
     pub tasks: Vec<Option<Arc<TaskControlBlock>>>,
     /// task resource allocator
     pub task_res_allocator: RecycleAllocator,
+    /// deadlock detection enabled?
+    pub deadlock_detect: bool,
     /// mutex list
     pub mutex_list: Vec<Option<Arc<dyn Mutex>>>,
     /// semaphore list
@@ -116,6 +118,7 @@ impl ProcessControlBlock {
                     signals: SignalFlags::empty(),
                     tasks: Vec::new(),
                     task_res_allocator: RecycleAllocator::new(),
+                    deadlock_detect: false,
                     mutex_list: Vec::new(),
                     semaphore_list: Vec::new(),
                     condvar_list: Vec::new(),
@@ -242,6 +245,7 @@ impl ProcessControlBlock {
                     signals: SignalFlags::empty(),
                     tasks: Vec::new(),
                     task_res_allocator: RecycleAllocator::new(),
+                    deadlock_detect: parent.deadlock_detect,
                     mutex_list: Vec::new(),
                     semaphore_list: Vec::new(),
                     condvar_list: Vec::new(),
